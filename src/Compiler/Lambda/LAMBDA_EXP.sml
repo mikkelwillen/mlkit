@@ -120,7 +120,7 @@ signature LAMBDA_EXP =
 															but safe, resetting of regions *)
 	  | FORCE_RESET_REGIONSprim of {instance: 'Type,
 									regvars : regvar list}  (* NOT Standard ML, for programmer-controlled,
-                                                          unsafe resetting of regions *)
+      	                                                    unsafe resetting of regions *)
 
     datatype LambdaPgm = PGM of datbinds * LambdaExp
 

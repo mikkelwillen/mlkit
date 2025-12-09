@@ -104,7 +104,6 @@ mod6.sml              ccl ecte                   (* Signature matching: It is an
                                                     is less general than the implementation type. *)
 mod7.sml              ccl ecte                   (* Signature matching: It is an error if the specification type
                                                     is less general than the implementation type. *)
-
 (* --------------------- *)
 (* Testing region resets *)
 (* --------------------- *)
