@@ -781,7 +781,7 @@ structure LambdaStatSem: LAMBDA_STAT_SEM =
                          log "but found type:\n"; log_st (layoutTypes ts);
                          die "Export of function")
                 end)
-           | RESET_REGIONSprim {instance} =>
+		   | RESET_REGIONSprim {instance, regvars} =>
              (valid_t env instance;
               check_t_no_f64 "RESET_REGIONSprim" instance;
               case lexps
@@ -791,7 +791,7 @@ structure LambdaStatSem: LAMBDA_STAT_SEM =
                      else die "RESET_REGIONSprim2"
                   end
                  | _ => die "RESET_REGIONSprim.Wrong number of args")
-           | FORCE_RESET_REGIONSprim {instance} =>
+		   | FORCE_RESET_REGIONSprim {instance, regvars} =>
              (valid_t env instance;
               check_t_no_f64 "FORCE_RESET_REGIONSprim" instance;
               case lexps

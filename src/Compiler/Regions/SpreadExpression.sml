@@ -1455,7 +1455,7 @@ good *)
              | _ => die "EXPORT: function does not have function type"
         end handle X => (print "EXPORT-1\n"; raise X))
 
-    | E.PRIM(E.RESET_REGIONSprim{instance = _}, [e0 as (E.VAR _)] ) =>
+       | E.PRIM(E.RESET_REGIONSprim{instance = _, regvars = regvars}, (* [e0 as (E.VAR _), e1] *) [e0] ) =>
           (*
                      x  => [mu], empty  rho fresh
                   -----------------------------------
@@ -1470,36 +1470,50 @@ good *)
             val (B, t as E'.TR(e',meta0,_), _, tvs) = S(B,e0,false,NOTAIL)
             val mus0 = unMus "S.RESET_REGIONSprim" meta0
             val mu = R.unitType
-            val phi = Eff.mkUnion(map Eff.mkPut(List.filter Eff.is_rho (R.ann_mus mus0 [])))
+			val regvars' = map (fn rv => case RSE.lookupRegVar rse rv of
+										   NONE => deepError rv ("Explicit region variable " ^ RegVar.pr rv ^ " not in scope")
+										 | SOME p => p) regvars
+			val rhos = Eff.remove_duplicates (List.filter Eff.is_rho (R.ann_mus mus0 regvars'))
+			val phi = Eff.mkUnion(map Eff.mkPut rhos)
           in
             case e' of
               E'.VAR{il_r as ref il, ...} =>
                  (case  R.un_il (#1 il) of ([],[],[]) =>
-                    (B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = []},t), E'.Mus [mu], phi),
+                    (B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = regvars'},t), E'.Mus [mu], phi),
                      NOTAIL,
                      tvs)
                   | _ => crash_resetting false)
+			| E'.RECORD(NONE, nil) => (* Allows resetting of unit type *)
+				(B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = regvars'},t), E'.Mus [mu], phi),
+			     NOTAIL,
+			     tvs)
             | _ => crash_resetting false
           end
-    | E.PRIM(E.RESET_REGIONSprim{instance = _}, _ ) => crash_resetting false
-    | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _}, [e0 as (E.VAR _)] ) =>
+       | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _, regvars = regvars}, [e0] ) =>
           (*  same as RESET_REGIONSprim, except that "force" is set to true in the result *)
           let
             val (B, t as E'.TR(e',meta0,_), _, tvs) = S(B,e0,false,NOTAIL)
             val mus0 = unMus "S.FORCE_RESET_REGIONSprim" meta0
             val mu = R.unitType
-            val phi = Eff.mkUnion(map Eff.mkPut(List.filter Eff.is_rho (R.ann_mus mus0 [])))
+			val regvars' = map (fn rv => case RSE.lookupRegVar rse rv of
+										   NONE => deepError rv ("Explicit region variable " ^ RegVar.pr rv ^ " not in scope")
+										 | SOME p => p) regvars
+			val rhos = Eff.remove_duplicates (List.filter Eff.is_rho (R.ann_mus mus0 regvars'))
+            val phi = Eff.mkUnion(map Eff.mkPut rhos)
           in
             case e' of
               E'.VAR{il_r as ref il, ...} =>
                  (case  R.un_il (#1 il) of ([],[],[]) =>
-                    (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = []},t), E'.Mus [mu], phi),
+                    (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = regvars'}, t), E'.Mus [mu], phi),
                      NOTAIL,
                      tvs)
                   | _ => crash_resetting true)
+			| E'.RECORD(NONE, nil) => (* Allows resetting of unit type *) 
+			  (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = regvars'}, t), E'.Mus [mu], phi),
+			   NOTAIL,
+			   tvs)
             | _ => crash_resetting true
           end
-    | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _}, _ ) => crash_resetting true
 
     | E.FRAME{declared_lvars, declared_excons} =>
         let

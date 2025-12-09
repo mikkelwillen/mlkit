@@ -1,0 +1,430 @@
+diff --git a/src/Common/ParseInfo.sml b/src/Common/ParseInfo.sml
+index 220c16e3..c774b466 100644
+--- a/src/Common/ParseInfo.sml
++++ b/src/Common/ParseInfo.sml
+@@ -3,7 +3,7 @@ structure ParseInfo: PARSE_INFO =
+     fun impossible s = Crash.impossible ("ParseInfo." ^ s)
+ 
+     structure SourceInfo = SourceInfo
+-    structure DFInfo = DFInfo
++    structure DFInfo     = DFInfo
+     type SourceInfo      = SourceInfo.SourceInfo
+     type DFInfo          = DFInfo.DFInfo
+     type StringTree      = PrettyPrint.StringTree
+diff --git a/src/Compiler/Lambda/CompileDec.sml b/src/Compiler/Lambda/CompileDec.sml
+index 34eaa285..4e7005d9 100644
+--- a/src/Compiler/Lambda/CompileDec.sml
++++ b/src/Compiler/Lambda/CompileDec.sml
+@@ -2769,7 +2769,8 @@ end; (*match compiler local*)
+                                  of SOME(TypeInfo.VAR_INFO{instances = [tau]}) =>
+                                    compileType tau
+                                   | _ => die "compileExp(APPexp..): wrong type info"
+-                in PRIM(RESET_REGIONSprim{instance = tau'}, [arg'])
++				    val regvars = regvarsFromRegvarsAndInfoOpt regvars_opt
++                in PRIM(RESET_REGIONSprim{instance = tau', regvars=regvars}, [arg'])
+                 end
+ 
+             | CE.FORCE_RESET_REGIONS =>
+@@ -2778,7 +2779,8 @@ end; (*match compiler local*)
+                                  of SOME(TypeInfo.VAR_INFO{instances = [tau]}) =>
+                                    compileType tau
+                                   | _ => die "compileExp(APPexp..): wrong type info"
+-                in PRIM(FORCE_RESET_REGIONSprim{instance = tau'}, [arg'])
++				    val regvars = regvarsFromRegvarsAndInfoOpt regvars_opt
++                in PRIM(FORCE_RESET_REGIONSprim{instance = tau', regvars=regvars}, [arg'])
+                 end
+ 
+             | CE.ABS =>       overloaded_prim env info CE.ABS       (compileAtexp env) (compileExp env) arg true  []
+diff --git a/src/Compiler/Lambda/LAMBDA_EXP.sml b/src/Compiler/Lambda/LAMBDA_EXP.sml
+index e99e6571..9158c3b6 100644
+--- a/src/Compiler/Lambda/LAMBDA_EXP.sml
++++ b/src/Compiler/Lambda/LAMBDA_EXP.sml
+@@ -110,9 +110,9 @@ signature LAMBDA_EXP =
+       | EXPORTprim of {name : string,
+                        instance_arg : 'Type,
+                        instance_res : 'Type}
+-      | RESET_REGIONSprim of {instance: 'Type}        (* NOT Standard ML, for programmer-directed,
++	  | RESET_REGIONSprim of {instance : 'Type, regvars : regvar list}        (* NOT Standard ML, for programmer-directed,
+                                                           but safe, resetting of regions *)
+-      | FORCE_RESET_REGIONSprim of {instance: 'Type}  (* NOT Standard ML, for programmer-controlled,
++	  | FORCE_RESET_REGIONSprim of {instance: 'Type, regvars : regvar list}  (* NOT Standard ML, for programmer-controlled,
+                                                           unsafe resetting of regions *)
+ 
+     datatype LambdaPgm = PGM of datbinds * LambdaExp
+@@ -180,6 +180,7 @@ signature LAMBDA_EXP =
+     val layoutTypeList   : TypeList -> StringTree
+     val layoutPrim       : ('Type -> StringTree) -> 'Type prim -> StringTree
+     val layoutType_repl  : Type -> StringTree
++	val layoutRegVars    : regvar list -> StringTree
+ 
+     (* Generate ML code *)
+     val barify           : LambdaPgm -> StringTree
+diff --git a/src/Compiler/Lambda/LambdaBasics.sml b/src/Compiler/Lambda/LambdaBasics.sml
+index a1bfa192..baa984b7 100644
+--- a/src/Compiler/Lambda/LambdaBasics.sml
++++ b/src/Compiler/Lambda/LambdaBasics.sml
+@@ -499,8 +499,8 @@ structure LambdaBasics: LAMBDA_BASICS =
+                region infere    nce and back end; it must not be changed; we must rename bound
+                tyvars, however.     *)
+               end
+-            | RESET_REGIONSprim {instance} => RESET_REGIONSprim {instance=on_tau ren instance}
+-            | FORCE_RESET_REGIONSprim {instance} => FORCE_RESET_REGIONSprim {instance=on_tau ren instance}
++			| RESET_REGIONSprim {instance, regvars} => RESET_REGIONSprim {instance=on_tau ren instance, regvars=regvars}
++			| FORCE_RESET_REGIONSprim {instance, regvars} => FORCE_RESET_REGIONSprim {instance=on_tau ren instance, regvars=regvars}
+             | x => x
+ 
+       fun on_e ren lamb =
+@@ -620,8 +620,8 @@ structure LambdaBasics: LAMBDA_BASICS =
+                        tyvars=tyvars, Type=Type}
+               (*the type scheme (tyvars, Type) is for a special purpose in the
+                region inference and back end; it is closed (i.e., ftv(Type) \subseteq {tyvars}) *)
+-           | RESET_REGIONSprim {instance} => RESET_REGIONSprim{instance=on_Type S instance}
+-           | FORCE_RESET_REGIONSprim {instance} => FORCE_RESET_REGIONSprim{instance=on_Type S instance}
++		   | RESET_REGIONSprim {instance, regvars} => RESET_REGIONSprim{instance=on_Type S instance, regvars=regvars}
++		   | FORCE_RESET_REGIONSprim {instance, regvars} => FORCE_RESET_REGIONSprim{instance=on_Type S instance, regvars=regvars}
+            | _ => prim
+ 
+       (* tyvarsType : Find the type variables in a type. We use Set
+diff --git a/src/Compiler/Lambda/LambdaExp.sml b/src/Compiler/Lambda/LambdaExp.sml
+index 140ca58b..c2fb3578 100644
+--- a/src/Compiler/Lambda/LambdaExp.sml
++++ b/src/Compiler/Lambda/LambdaExp.sml
+@@ -131,10 +131,10 @@ structure LambdaExp : LAMBDA_EXP =
+       | EXPORTprim of {name : string,
+                        instance_arg : 'Type,
+                        instance_res : 'Type}
+-      | RESET_REGIONSprim of {instance: 'Type}        (* NOT Standard ML, for programmer-directed,
++	  | RESET_REGIONSprim of {instance: 'Type, regvars: regvar list}        (* NOT Standard ML, for programmer-directed,
+                                                        * but safe, resetting of regions *)
+-      | FORCE_RESET_REGIONSprim of {instance: 'Type}  (* NOT Standard ML, for programmer-controlled,
+-                                                       * unsafe resetting of regions *)
++	  | FORCE_RESET_REGIONSprim of {instance: 'Type, regvars: regvar list}  (* NOT Standard ML, for programmer-controlled,
++													   * unsafe resetting of regions *)
+ 
+     datatype LambdaPgm = PGM of datbinds * LambdaExp
+ 
+@@ -235,8 +235,8 @@ structure LambdaExp : LAMBDA_EXP =
+       | EQUALprim{instance} => (foldType g) acc instance
+       | CCALLprim {instances, ...} => foldl' (foldType g) acc instances
+       | EXPORTprim {instance_arg,instance_res, ...} => (foldType g) ((foldType g) acc instance_arg) instance_res
+-      | RESET_REGIONSprim{instance} => (foldType g) acc instance
+-      | FORCE_RESET_REGIONSprim{instance} => (foldType g) acc instance
++      | RESET_REGIONSprim{instance, regvars} => (foldType g) acc instance
++      | FORCE_RESET_REGIONSprim{instance, regvars} => (foldType g) acc instance
+       | _ => acc
+ 
+    fun size (e: LambdaExp) = foldTD(fn n:int => fn exp => n+1,
+@@ -498,6 +498,11 @@ structure LambdaExp : LAMBDA_EXP =
+          barify_catch_basislib (unsymb(TyName.pr_TyName' tn))
+        else TyName.pr_TyName tn
+ 
++    fun layoutRegVar r = (PP.LEAF o RegVar.pr) r
++
++    fun layoutRegVars regvars = PP.NODE {start="", finish="", childsep=PP.LEFT " ", indent=0,
++                                         children = map layoutRegVar regvars}
++
+     fun layoutPrim layoutType prim =
+      case prim of
+         CONprim{con,instances,regvar} =>
+@@ -665,16 +670,16 @@ structure LambdaExp : LAMBDA_EXP =
+           else
+               if !barify_p then PP.LEAF ("Prim.export " ^ strip_ name)
+               else PP.LEAF ("_export " ^ name)
+-      | RESET_REGIONSprim {instance} =>
++     | RESET_REGIONSprim {instance, regvars} =>
+           if !Flags.print_types then
+               PP.NODE{start="resetRegions(", finish=")",indent=2,
+-                  children=[layoutType instance],childsep=PP.NOSEP}
+-          else PP.LEAF("resetRegions")
+-      | FORCE_RESET_REGIONSprim {instance} =>
++					  children=[layoutType instance, layoutRegVars regvars],childsep=PP.RIGHT ","}
++          else PP.LEAF "resetRegions"
++     | FORCE_RESET_REGIONSprim {instance, regvars} =>
+           if !Flags.print_types then
+               PP.NODE{start="forceResetting(", finish=")",indent=2,
+-                  children=[layoutType instance],childsep=PP.NOSEP}
+-          else PP.LEAF("forceResetting")
++					  children=[layoutType instance, layoutRegVars regvars],childsep=PP.RIGHT ","}
++          else PP.LEAF "forceResetting"
+ 
+     fun layoutSwitch layoutLambdaExp show_const (SWITCH(lamb,rules,wildcardOpt)) =
+       let
+@@ -770,10 +775,6 @@ structure LambdaExp : LAMBDA_EXP =
+ 
+     and layoutType_repl t = layoutType0 {repl=true} t
+ 
+-    and layoutRegVar r = (PP.LEAF o RegVar.pr) r
+-
+-    and layoutRegVars regvars = PP.NODE {start="", finish="", childsep=PP.LEFT " ", indent=0,
+-                                         children = map layoutRegVar regvars}
+     and layoutTypeList tl =
+         case tl of
+             Types taus => PP.NODE{start="Types(", finish=")", indent=1,
+@@ -1577,10 +1578,14 @@ structure LambdaExp : LAMBDA_EXP =
+                  (Pickle.tup3Gen0 (Pickle.string,pu_Type,pu_Type)))
+             fun fun_RESET_REGIONSprim _ =
+                 Pickle.con1 RESET_REGIONSprim (fn RESET_REGIONSprim a => a | _ => die "pu_prim.RESET_REGIONSprim")
+-                (Pickle.convert(fn t => {instance=t},#instance) pu_Type)
++				(Pickle.convert(fn (t, rvs) => {instance=t, regvars=rvs},
++								fn {instance=t, regvars=rvs} => (t, rvs))
++							   (Pickle.pairGen0(pu_Type, Pickle.listGen RegVar.pu)))
+             fun fun_FORCE_RESET_REGIONSprim _ =
+-                Pickle.con1 FORCE_RESET_REGIONSprim (fn FORCE_RESET_REGIONSprim a => a | _ => die "pu_prim.FORCE_RESET_REGIONSprim")
+-                (Pickle.convert(fn t => {instance=t},#instance) pu_Type)
++				Pickle.con1 FORCE_RESET_REGIONSprim (fn FORCE_RESET_REGIONSprim a => a | _ => die "pu_prim.FORCE_RESET_REGIONSprim")
++				(Pickle.convert(fn (t, rvs) => {instance=t, regvars=rvs},
++								fn {instance=t, regvars=rvs} => (t, rvs))
++							   (Pickle.pairGen0(pu_Type, Pickle.listGen RegVar.pu)))
+             val fun_BLOCKF64prim = Pickle.con0 BLOCKF64prim
+             fun fun_SCRATCHMEMprim _ =
+                 Pickle.con1 (fn n => SCRATCHMEMprim {sz=n}) (fn SCRATCHMEMprim {sz=a} => a | _ => die "pu_prim.SCRATCHMEMprim")
+@@ -1892,8 +1897,8 @@ structure LambdaExp : LAMBDA_EXP =
+       | SCRATCHMEMprim _ => acc
+       | EXPORTprim {instance_arg,instance_res, ...} =>
+         tyvars_Type s instance_arg (tyvars_Type s instance_res acc)
+-      | RESET_REGIONSprim{instance} => tyvars_Type s instance acc
+-      | FORCE_RESET_REGIONSprim{instance} => tyvars_Type s instance acc
++      | RESET_REGIONSprim{instance, regvars} => tyvars_Type s instance acc
++      | FORCE_RESET_REGIONSprim{instance, regvars} => tyvars_Type s instance acc
+       | RECORDprim _ => acc
+       | SELECTprim _ => acc
+       | UB_RECORDprim => acc
+diff --git a/src/Compiler/Lambda/LambdaStatSem.sml b/src/Compiler/Lambda/LambdaStatSem.sml
+index 87cb45b4..24ecf6d8 100644
+--- a/src/Compiler/Lambda/LambdaStatSem.sml
++++ b/src/Compiler/Lambda/LambdaStatSem.sml
+@@ -781,7 +781,7 @@ structure LambdaStatSem: LAMBDA_STAT_SEM =
+                          log "but found type:\n"; log_st (layoutTypes ts);
+                          die "Export of function")
+                 end)
+-           | RESET_REGIONSprim {instance} =>
++		   | RESET_REGIONSprim {instance, regvars} =>
+              (valid_t env instance;
+               check_t_no_f64 "RESET_REGIONSprim" instance;
+               case lexps
+@@ -791,7 +791,7 @@ structure LambdaStatSem: LAMBDA_STAT_SEM =
+                      else die "RESET_REGIONSprim2"
+                   end
+                  | _ => die "RESET_REGIONSprim.Wrong number of args")
+-           | FORCE_RESET_REGIONSprim {instance} =>
++		   | FORCE_RESET_REGIONSprim {instance, regvars} =>
+              (valid_t env instance;
+               check_t_no_f64 "FORCE_RESET_REGIONSprim" instance;
+               case lexps
+diff --git a/src/Compiler/Lambda/OptLambda.sml b/src/Compiler/Lambda/OptLambda.sml
+index 61e9f7dd..e12efc23 100644
+--- a/src/Compiler/Lambda/OptLambda.sml
++++ b/src/Compiler/Lambda/OptLambda.sml
+@@ -448,8 +448,8 @@ structure OptLambda : OPT_LAMBDA =
+                 eq_Type(t,t') andalso RegVar.eq(rv,rv')
+               | (ASSIGNprim {instance=t}, ASSIGNprim {instance=t'}) => eq_Type(t,t')
+               | (EQUALprim {instance=t}, EQUALprim {instance=t'}) => eq_Type(t,t')
+-              | (RESET_REGIONSprim {instance=t}, RESET_REGIONSprim {instance=t'}) => eq_Type(t,t')
+-              | (FORCE_RESET_REGIONSprim {instance=t}, FORCE_RESET_REGIONSprim {instance=t'}) => eq_Type(t,t')
++			  | (RESET_REGIONSprim {instance=t, regvars=rvs}, RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
++			  | (FORCE_RESET_REGIONSprim {instance=t, regvars=rvs}, FORCE_RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
+               | (CCALLprim{name=n,instances=il,tyvars=tvs,Type=t}, CCALLprim{name=n',instances=il',tyvars=tvs',Type=t'}) =>
+                     n = n' andalso eq_Types (il,il') andalso eq_sigma((tvs,t),(tvs',t'))
+               | (EXPORTprim{name=n,instance_arg=a,instance_res=r}, EXPORTprim{name=n',instance_arg=a',instance_res=r'}) =>
+diff --git a/src/Compiler/Regions/AtInf.sml b/src/Compiler/Regions/AtInf.sml
+index 4b514d24..92f25445 100644
+--- a/src/Compiler/Regions/AtInf.sml
++++ b/src/Compiler/Regions/AtInf.sml
+@@ -111,7 +111,7 @@ structure AtInf : AT_INF =
+         end
+   end
+ 
+-  fun lay_header (force,lvar,(tau,p:place option)) =
++  fun lay_header_lvar (force,lvar,(tau,p:place option)) =
+       if force
+       then PP.NODE{start= "", finish = "", indent = 0, childsep = PP.NOSEP,
+                    children = [PP.LEAF "You have requested resetting the regions that appear free ",
+@@ -125,6 +125,17 @@ structure AtInf : AT_INF =
+                                PP.LEAF ("in the type scheme with place of '" ^ Lvars.pr_lvar lvar ^ "', i.e., in"),
+                                lay_sigma_p(RType.type_to_scheme tau,p)]}
+ 
++  fun lay_header_regvars (force, regvars) =
++	  if force
++	  then PP.NODE{start= "", finish = "", indent = 0, childsep = PP.NOSEP,
++				   children = [PP.LEAF "You have requested resetting the regions ",
++							   PP.LEAF ("{" ^ regvars ^ "}."),
++							   PP.LEAF "I have done as you requested, but I cannot guarantee that it is safe.",
++							   PP.LEAF "Here are my objections (one for each region variable concerned):"]}
++	  else PP.NODE{start= "", finish = "", indent = 0, childsep = PP.NOSEP,
++				   children = [PP.LEAF "You have suggested resetting the regions ",
++							   PP.LEAF ("{" ^ regvars ^ "}.")]}
++
+   fun lay_set (rhos: place list) =
+       PP.HNODE{start ="{", finish = "}", childsep = PP.RIGHT",",
+                children = map Eff.layout_effect rhos}
+@@ -294,15 +305,24 @@ structure AtInf : AT_INF =
+       in loop(1,l)
+       end
+ 
+-  fun lay_report (force:bool, lvar, mu, conflicts) : StringTree =
++  fun lay_report_lvar (force:bool, lvar, mu, conflicts) : StringTree =
+       let val tau_p =
+               case RType.unBOX mu of
+                   SOME (tau,p) => (tau,SOME p)
+                 | NONE => (mu,NONE)
+-      in PP.NODE{start = if force then ("forceResetting(" ^ Lvars.pr_lvar lvar ^ "): ")
+-                         else ("resetRegions(" ^ Lvars.pr_lvar lvar ^ "): "),
+-                 finish = "", indent = 3, childsep = PP.NOSEP,
+-                 children = lay_header(force,lvar,tau_p) :: lay_conflicts(force,conflicts)}
++		  val head = if force then ("forceResetting(" ^ Lvars.pr_lvar lvar ^ "): ")
++					 else ("resetRegions(" ^ Lvars.pr_lvar lvar ^ "): ")
++      in PP.NODE{start = head, finish = "", indent = 3, childsep = PP.NOSEP,
++                 children = lay_header_lvar(force,lvar,tau_p) :: lay_conflicts(force,conflicts)}
++      end
++
++  fun lay_report_regvars (force:bool, rhos, conflicts) : StringTree =
++      let
++		val regvars = String.concatWith ", " (map Eff.pp_eff rhos)
++		val head = if force then ("forceResetting(" ^ regvars ^ "): ")
++				   else ("resetRegions(" ^ regvars ^ "): ")
++      in PP.NODE{start = head, finish = "", indent = 3, childsep = PP.NOSEP,
++                 children = lay_header_regvars(force,regvars) :: lay_conflicts(force,conflicts)}
+       end
+ 
+   fun any_live (rho,sme as (_,LE,EE), liveset,
+@@ -555,25 +575,30 @@ structure AtInf : AT_INF =
+                      | BLOCKF64 (alloc, trs) => BLOCKF64(which_at sme alloc,map (sma_trip sme) trs)
+                      | SCRATCHMEM (n,alloc) => SCRATCHMEM(n,which_at sme alloc)
+                      | EXPORT(i,tr) => EXPORT(i,sma_trip sme tr)
+-                     | RESET_REGIONS ({force, liveset=SOME liveset, ...}, tr as (TR(VAR{lvar,...},meta,_,_))) =>
++					 | RESET_REGIONS ({force, liveset=SOME liveset, regions_for_resetting}, tr as (TR(e,meta,_,_))) =>
+                           (case meta of
+                              MulExp.RegionExp.Mus [mu] =>
+-                                   let val free_regions = Eff.remove_duplicates(RType.frv_mu mu)
+-                                       val (place_at_list, conflicts) =
+-                                           analyse_rhos_for_resetting(sme,liveset,free_regions)
+-                                       val conflicts' =
+-                                           if force then
+-                                             foldl (fn (SAT rho, acc) => FORMAL_REGION_PARAM rho :: acc
+-                                                   | (_, acc) => acc) conflicts place_at_list
+-                                           else conflicts
+-                                   in
+-                                     case conflicts' of
+-                                         [] => ()
+-                                       | _ => warn (PP.reportStringTree(lay_report(force,lvar,mu,conflicts')));
+-                                     RESET_REGIONS({force=force,regions_for_resetting = place_at_list, liveset=NONE},
+-                                                   sma_trip sme tr)
+-                                   end
+-                            | _ => die "RESET_REGIONS: expected a type and place on argument to resetRegions"
++							 let
++							   val rhos = map #1 regions_for_resetting
++							   val free_regions = Eff.remove_duplicates(RType.frv_mu mu @ rhos)
++							   val (place_at_list, conflicts) =
++								 analyse_rhos_for_resetting(sme,liveset,free_regions)
++							   val conflicts' =
++								 if force then
++								   foldl (fn (SAT rho, acc) => FORMAL_REGION_PARAM rho :: acc
++											| (_, acc) => acc) conflicts place_at_list
++								 else conflicts
++							 in
++							   case conflicts' of
++								 [] => ()
++							   | _ => case e of
++										VAR{lvar, ...} => warn (PP.reportStringTree(lay_report_lvar(force,lvar,mu,conflicts')))
++									  | RECORD(NONE, nil) => warn (PP.reportStringTree(lay_report_regvars(force, rhos, conflicts')))
++									  | _ => die "RESET_REGIONS: ill-formed expression: argument to RESET_REGIONS should be a variable or unit";
++							   RESET_REGIONS({force=force,regions_for_resetting = place_at_list, liveset=NONE},
++											 sma_trip sme tr)
++							 end
++						   | _ => die "RESET_REGIONS: expected a type and place on argument to resetRegions"
+                           )
+                      | RESET_REGIONS _ => die "ill-formed expression: argument to RESET_REGIONS should be a variable"
+                      | FRAME{declared_lvars, declared_excons} =>
+diff --git a/src/Compiler/Regions/Mul.sml b/src/Compiler/Regions/Mul.sml
+index b7c54ba6..b27c7be5 100644
+--- a/src/Compiler/Regions/Mul.sml
++++ b/src/Compiler/Regions/Mul.sml
+@@ -223,7 +223,7 @@ struct
+     end
+ 
+   fun equal_qmularefset ((qmularefset1:qmularefset,sigma1),(qmularefset2:qmularefset,sigma2)) =
+-      arity_qmularefset(qmularefset1) = arity_qmularefset(qmularefset2) andalso
++      arity_qmularefset qmularefset1 = arity_qmularefset qmularefset2 andalso
+ 
+      (* (1) normalize qmularefsets so that bvs comes in the order of first
+       * occurrences in its type. (2) instantiate qmularefsets to fresh
+@@ -302,7 +302,7 @@ struct
+                             loop(n+1))
+           in loop 0;
+              Array.update(empty,
+-                                    hash(key_of_toplevel_arreff),
++                                    hash key_of_toplevel_arreff,
+                                     [(key_of_toplevel_arreff,[])])
+           end
+ 
+diff --git a/src/Compiler/Regions/SpreadExpression.sml b/src/Compiler/Regions/SpreadExpression.sml
+index 0528a994..055e5cd4 100644
+--- a/src/Compiler/Regions/SpreadExpression.sml
++++ b/src/Compiler/Regions/SpreadExpression.sml
+@@ -1455,7 +1455,7 @@ good *)
+              | _ => die "EXPORT: function does not have function type"
+         end handle X => (print "EXPORT-1\n"; raise X))
+ 
+-    | E.PRIM(E.RESET_REGIONSprim{instance = _}, [e0 as (E.VAR _)] ) =>
++       | E.PRIM(E.RESET_REGIONSprim{instance = _, regvars = regvars}, (* [e0 as (E.VAR _), e1] *) [e0] ) =>
+           (*
+                      x  => [mu], empty  rho fresh
+                   -----------------------------------
+@@ -1470,36 +1470,50 @@ good *)
+             val (B, t as E'.TR(e',meta0,_), _, tvs) = S(B,e0,false,NOTAIL)
+             val mus0 = unMus "S.RESET_REGIONSprim" meta0
+             val mu = R.unitType
+-            val phi = Eff.mkUnion(map Eff.mkPut(List.filter Eff.is_rho (R.ann_mus mus0 [])))
++			val regvars' = map (fn rv => case RSE.lookupRegVar rse rv of
++										   NONE => deepError rv ("Explicit region variable " ^ RegVar.pr rv ^ " not in scope")
++										 | SOME p => p) regvars
++			val rhos = Eff.remove_duplicates (List.filter Eff.is_rho (R.ann_mus mus0 regvars'))
++			val phi = Eff.mkUnion(map Eff.mkPut rhos)
+           in
+             case e' of
+               E'.VAR{il_r as ref il, ...} =>
+                  (case  R.un_il (#1 il) of ([],[],[]) =>
+-                    (B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = []},t), E'.Mus [mu], phi),
++                    (B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = regvars'},t), E'.Mus [mu], phi),
+                      NOTAIL,
+                      tvs)
+                   | _ => crash_resetting false)
++			| E'.RECORD(NONE, nil) => (* Allows resetting of unit type *)
++				(B,E'.TR(E'.RESET_REGIONS({force=false, regions_for_resetting = regvars'},t), E'.Mus [mu], phi),
++			     NOTAIL,
++			     tvs)
+             | _ => crash_resetting false
+           end
+-    | E.PRIM(E.RESET_REGIONSprim{instance = _}, _ ) => crash_resetting false
+-    | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _}, [e0 as (E.VAR _)] ) =>
++       | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _, regvars = regvars}, [e0] ) =>
+           (*  same as RESET_REGIONSprim, except that "force" is set to true in the result *)
+           let
+             val (B, t as E'.TR(e',meta0,_), _, tvs) = S(B,e0,false,NOTAIL)
+             val mus0 = unMus "S.FORCE_RESET_REGIONSprim" meta0
+             val mu = R.unitType
+-            val phi = Eff.mkUnion(map Eff.mkPut(List.filter Eff.is_rho (R.ann_mus mus0 [])))
++			val regvars' = map (fn rv => case RSE.lookupRegVar rse rv of
++										   NONE => deepError rv ("Explicit region variable " ^ RegVar.pr rv ^ " not in scope")
++										 | SOME p => p) regvars
++			val rhos = Eff.remove_duplicates (List.filter Eff.is_rho (R.ann_mus mus0 regvars'))
++            val phi = Eff.mkUnion(map Eff.mkPut rhos)
+           in
+             case e' of
+               E'.VAR{il_r as ref il, ...} =>
+                  (case  R.un_il (#1 il) of ([],[],[]) =>
+-                    (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = []},t), E'.Mus [mu], phi),
++                    (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = regvars'}, t), E'.Mus [mu], phi),
+                      NOTAIL,
+                      tvs)
+                   | _ => crash_resetting true)
++			| E'.RECORD(NONE, nil) => (* Allows resetting of unit type *) 
++			  (B,E'.TR(E'.RESET_REGIONS({force=true, regions_for_resetting = regvars'}, t), E'.Mus [mu], phi),
++			   NOTAIL,
++			   tvs)
+             | _ => crash_resetting true
+           end
+-    | E.PRIM(E.FORCE_RESET_REGIONSprim{instance = _}, _ ) => crash_resetting true
+ 
+     | E.FRAME{declared_lvars, declared_excons} =>
+         let

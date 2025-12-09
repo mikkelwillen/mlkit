@@ -499,8 +499,8 @@ structure LambdaBasics: LAMBDA_BASICS =
                region infere    nce and back end; it must not be changed; we must rename bound
                tyvars, however.     *)
               end
-            | RESET_REGIONSprim {instance} => RESET_REGIONSprim {instance=on_tau ren instance}
-            | FORCE_RESET_REGIONSprim {instance} => FORCE_RESET_REGIONSprim {instance=on_tau ren instance}
+			| RESET_REGIONSprim {instance, regvars} => RESET_REGIONSprim {instance=on_tau ren instance, regvars=regvars}
+			| FORCE_RESET_REGIONSprim {instance, regvars} => FORCE_RESET_REGIONSprim {instance=on_tau ren instance, regvars=regvars}
             | x => x
 
       fun on_e ren lamb =
@@ -620,8 +620,8 @@ structure LambdaBasics: LAMBDA_BASICS =
                        tyvars=tyvars, Type=Type}
               (*the type scheme (tyvars, Type) is for a special purpose in the
                region inference and back end; it is closed (i.e., ftv(Type) \subseteq {tyvars}) *)
-           | RESET_REGIONSprim {instance} => RESET_REGIONSprim{instance=on_Type S instance}
-           | FORCE_RESET_REGIONSprim {instance} => FORCE_RESET_REGIONSprim{instance=on_Type S instance}
+		   | RESET_REGIONSprim {instance, regvars} => RESET_REGIONSprim{instance=on_Type S instance, regvars=regvars}
+		   | FORCE_RESET_REGIONSprim {instance, regvars} => FORCE_RESET_REGIONSprim{instance=on_Type S instance, regvars=regvars}
            | _ => prim
 
       (* tyvarsType : Find the type variables in a type. We use Set

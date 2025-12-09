@@ -2769,7 +2769,8 @@ end; (*match compiler local*)
                                  of SOME(TypeInfo.VAR_INFO{instances = [tau]}) =>
                                    compileType tau
                                   | _ => die "compileExp(APPexp..): wrong type info"
-                in PRIM(RESET_REGIONSprim{instance = tau'}, [arg'])
+				    val regvars = regvarsFromRegvarsAndInfoOpt regvars_opt
+                in PRIM(RESET_REGIONSprim{instance = tau', regvars=regvars}, [arg'])
                 end
 
             | CE.FORCE_RESET_REGIONS =>
@@ -2778,7 +2779,8 @@ end; (*match compiler local*)
                                  of SOME(TypeInfo.VAR_INFO{instances = [tau]}) =>
                                    compileType tau
                                   | _ => die "compileExp(APPexp..): wrong type info"
-                in PRIM(FORCE_RESET_REGIONSprim{instance = tau'}, [arg'])
+				    val regvars = regvarsFromRegvarsAndInfoOpt regvars_opt
+                in PRIM(FORCE_RESET_REGIONSprim{instance = tau', regvars=regvars}, [arg'])
                 end
 
             | CE.ABS =>       overloaded_prim env info CE.ABS       (compileAtexp env) (compileExp env) arg true  []

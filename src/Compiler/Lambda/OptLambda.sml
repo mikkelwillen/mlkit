@@ -448,8 +448,8 @@ structure OptLambda : OPT_LAMBDA =
                 eq_Type(t,t') andalso RegVar.eq(rv,rv')
               | (ASSIGNprim {instance=t}, ASSIGNprim {instance=t'}) => eq_Type(t,t')
               | (EQUALprim {instance=t}, EQUALprim {instance=t'}) => eq_Type(t,t')
-              | (RESET_REGIONSprim {instance=t}, RESET_REGIONSprim {instance=t'}) => eq_Type(t,t')
-              | (FORCE_RESET_REGIONSprim {instance=t}, FORCE_RESET_REGIONSprim {instance=t'}) => eq_Type(t,t')
+			  | (RESET_REGIONSprim {instance=t, regvars=rvs}, RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
+			  | (FORCE_RESET_REGIONSprim {instance=t, regvars=rvs}, FORCE_RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
               | (CCALLprim{name=n,instances=il,tyvars=tvs,Type=t}, CCALLprim{name=n',instances=il',tyvars=tvs',Type=t'}) =>
                     n = n' andalso eq_Types (il,il') andalso eq_sigma((tvs,t),(tvs',t'))
               | (EXPORTprim{name=n,instance_arg=a,instance_res=r}, EXPORTprim{name=n',instance_arg=a',instance_res=r'}) =>

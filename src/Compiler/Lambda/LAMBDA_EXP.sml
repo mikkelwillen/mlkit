@@ -110,9 +110,9 @@ signature LAMBDA_EXP =
       | EXPORTprim of {name : string,
                        instance_arg : 'Type,
                        instance_res : 'Type}
-      | RESET_REGIONSprim of {instance: 'Type}        (* NOT Standard ML, for programmer-directed,
+	  | RESET_REGIONSprim of {instance : 'Type, regvars : regvar list}        (* NOT Standard ML, for programmer-directed,
                                                           but safe, resetting of regions *)
-      | FORCE_RESET_REGIONSprim of {instance: 'Type}  (* NOT Standard ML, for programmer-controlled,
+	  | FORCE_RESET_REGIONSprim of {instance: 'Type, regvars : regvar list}  (* NOT Standard ML, for programmer-controlled,
                                                           unsafe resetting of regions *)
 
     datatype LambdaPgm = PGM of datbinds * LambdaExp
@@ -180,6 +180,7 @@ signature LAMBDA_EXP =
     val layoutTypeList   : TypeList -> StringTree
     val layoutPrim       : ('Type -> StringTree) -> 'Type prim -> StringTree
     val layoutType_repl  : Type -> StringTree
+	val layoutRegVars    : regvar list -> StringTree
 
     (* Generate ML code *)
     val barify           : LambdaPgm -> StringTree
