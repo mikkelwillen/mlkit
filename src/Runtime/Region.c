@@ -318,6 +318,69 @@ NoOfPagesInRegion(Region r)
 #endif /* ENABLE_GEN_GC */
 }
 
+/* Check if a region is infinite. */
+size_t is_Inf (Region r) {
+  return convertBoolToML(is_inf(r));
+}
+
+/* Check if a region is at bottom. */
+size_t is_Atbot (Region r) {
+  return convertBoolToML(is_atbot(r));
+}
+
+/* Get number of pages in a region. */
+size_t num_Pages (Region r) {
+  Region r_cleared = clearStatusBits(r);
+  return convertIntToML(NoOfPagesInRegion(r_cleared));
+}
+
+/* Get size of a region page. */
+size_t get_Page_Size_Bytes () {
+  return convertIntToML(REGION_PAGE_SIZE_BYTES);
+}
+
+/* Get the size of the free list */
+size_t get_Free_List_Size_Bytes () {
+  return convertIntToML(size_free_list()*REGION_PAGE_SIZE_BYTES);
+}
+
+/* Get total number of region pages allocated */
+size_t get_Total_Region_Pages_Allocated (){
+  return convertIntToML(rp_total);
+}
+
+/* Get the memory usage of all region pages allocated */
+size_t get_Total_Region_Pages_Allocated_Bytes (){
+  return convertIntToML(rp_total*REGION_PAGE_SIZE_BYTES);
+}
+
+/* Get the memory usage of a region */
+size_t get_Region_Memory_Usage_Bytes (Region r) {
+  Region r_cleared = clearStatusBits(r);
+  return convertIntToML(NoOfPagesInRegion(r_cleared)*REGION_PAGE_SIZE_BYTES -
+						freeInRegion(r_cleared)*WORD_SIZE_BYTES);
+}
+
+/* Get number of allocated region pages, including free list */
+size_t num_Allocated_Pages () {
+  return convertIntToML(rp_total);
+}
+
+/* Get memory usage of allocated region pages, including free list*/
+size_t get_Allocated_Memory_Bytes () {
+  return convertIntToML(rp_total*REGION_PAGE_SIZE_BYTES);
+}
+
+/* Get number of allocated region pages, excluding free list */
+size_t num_Used_Pages () {
+  return convertIntToML(rp_total - size_free_list());
+}
+
+/* Get memory usage of allocated region pages, excluding free list*/
+size_t get_Used_Memory_Bytes () {
+  return convertIntToML((rp_total - size_free_list())*REGION_PAGE_SIZE_BYTES);
+}
+
 /*
 void
 printFreeList()

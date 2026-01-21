@@ -165,7 +165,7 @@ typedef struct rp {
  * index parameter.  -- mael 2001-09-13 */
 
 /* For tag-free garbage collection of pairs, triples, and refs, we
- * make sure that large objects are aligned on 1K boundaries, which
+ * make sure that large objects are aligned on region page boundaries, which
  * makes it possible to determine if a pointer points into the stack,
  * constants in data space, a region in from-space, or a region in
  * to-space. The orig pointer points back to the memory allocated by
@@ -573,5 +573,6 @@ void pp_gen(Gen *gen);
 void chk_obj_in_gen(Gen *gen, uintptr_t *obj_ptr, char* s);
 
 void free_lobjs(Lobjs* lobjs);
+size_t is_Inf(Region r);
 
 #endif /*REGION_H*/

@@ -709,7 +709,7 @@ structure LambdaStatSem: LAMBDA_STAT_SEM =
                                            end
                                           | _ => die "EQUALprim.Wrong instance kind")
                    | _ => die "EQUALprim.Wrong number of args")
-           | CCALLprim {name, instances, tyvars, Type} =>
+		   | CCALLprim {name, instances, regvars, tyvars, Type} =>
                (valid_ts env instances;
                 valid_s env (tyvars,Type);
                 case mk_instance_ccall ((tyvars, Type), instances) of
