@@ -82,6 +82,8 @@ structure Tester : TESTER =
           (if !logdirect then " " else " --log_to_file ") ^
 	  (if opt "nobasislib" then "-no_basislib " else "") ^
 	  (if opt "tc" (*Time Compiler*) then "--timings " else "") ^
+	  (if opt "nogc" then "-no_gc " else "") ^
+	  (if opt "parallel" then "-par " else "") ^
           (if opt "ccl" (*Compare Compiler Logs*) then "--report_file_sig " else "")
 	       ^ concatWith " " flags
 

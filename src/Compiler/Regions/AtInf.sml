@@ -569,6 +569,32 @@ structure AtInf : AT_INF =
                      | EQUAL ({mu_of_arg1, mu_of_arg2}, tr1,tr2) =>
                        EQUAL ({mu_of_arg1=mu_of_arg1, mu_of_arg2=mu_of_arg2},  (* no need for analysis *)
                               sma_trip sme tr1,sma_trip sme tr2)
+					 | CCALL ({name="resetRegions", mu_result, rhos_for_result}, trs) =>
+						(case trs of
+						   [TR(e,meta,_,_)] =>
+						   	(case meta of
+							  	MulExp.RegionExp.Mus [mu] =>
+								  let
+									val rhos = map #1 (map #1 rhos_for_result)
+									val (place_at_list, conflicts) =
+									  analyse_rhos_for_resetting(sme,(Lvarset.empty, []),rhos)
+									val conflicts' = foldl (fn (SAT rho, acc) => FORMAL_REGION_PARAM rho :: acc
+															  | (_, acc) => acc) conflicts place_at_list
+								  in
+									case conflicts' of
+									  [] => ()
+									| _ => case e of
+											RECORD(NONE, nil) => warn (PP.reportStringTree(lay_report_regvars(true, rhos, conflicts')))
+										  | _ => die "resetRegions: ill-formed expression: argument to resetRegions should be unit";
+									CCALL ({name = "resetRegions", mu_result = mu_result,
+										   rhos_for_result =
+										   map (fn ((rho, liveset), i_opt) =>
+												  (which_at sme (rho, liveset), i_opt))
+											   rhos_for_result},
+										  map (sma_trip sme) trs)
+								  end
+							| _ => die "resetRegions: expected a type and place on argument to resetRegions")
+						| _ => die "ill-formed expression: argument to resetRegions should be unit")
                      | CCALL ({name, mu_result, rhos_for_result}, trs) =>
                          CCALL ({name = name, mu_result = mu_result,
                                  rhos_for_result =

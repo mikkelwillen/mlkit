@@ -2,47 +2,37 @@
 
 signature REGIONS =
   sig
-	(* use built-in resetRegions *)
-	(* \/ 'a. 'a -> unit *)
-	val resetRegionsOf : 'a -> unit
 	(* \/ r. r * unit -> unit *)
 	val resetRegion : unit -> unit
-
-	(* use built-in forceResetting *)
-	(* \/ 'a. 'a -> unit *)
-	val forceResetRegionsOf : 'a -> unit
-	(* \/ r. r * unit -> unit *)
-	val forceResetRegion : unit -> unit
-
 	
+
 	(* \/ r. r * unit -> bool *)
     val isAtbot : unit -> bool
 
 	(* \/ r. r * unit -> int *)
-    val memoryUsage : unit -> int
+	val numPagesOfRegion : unit -> int
 
 	(* \/ r. r * unit -> int *)
-	val numPages : unit -> int
+    val memoryUsageOfRegion : unit -> int
 
 
 	val getPageSizeBytes : unit -> int
 
-	val getFreeListSizeBytes : unit -> int
+	val getNumAllocatedPages : unit -> int
 	
-	val numAllocatedPages : unit -> int
+	val getFreeListSize: unit -> int
 
-	val allocatedMemory : unit -> int
 
-	val numUsedPages : unit -> int
+	val getThreadFreeListSize : unit -> int
 
-	val usedMemory : unit -> int
+	val giveThreadFreeListToGlobal : unit -> unit
   end
 
 (**
-[resetRegion [r] ()] resets the explicit region parameter, if they are safe to
-reset.
+[resetRegion [r] ()] resets the explicit region parameter. Warnings will be
+generated if there are any live references into the region, but the region will
+still be reset. This operation it thus not guaranteed to be sound.
 
-[forceResetRegion [r] ()] forcefully resets the explicit region parameter.
 
 [isAtbot [r] ()] returns true if the explicit region parameter is at bottom.
 
@@ -51,7 +41,16 @@ of the explicit region parameter.
 
 [numPages [r] ()] returns the number of pages allocated to the explicit region
 
+
 [getPageSizeBytes ()] returns the size of a memory page (in bytes).
 
-[getFreeListSizeBytes ()] returns the size of the free list (in bytes).
+[getNumAllocatedPages ()] returns the total number of allocated pages, including
+free list.
+
+[getFreeListSize ()] returns the size of the global free list (in number of pages).
+
+
+[getThreadFreeListSize ()] returns the size of the thread-local free list (in number of pages). If the program is single-threaded, this is equivalent to getFreeListSize ().
+
+[giveThreadFreeListToGlobal] gives pages of thread local free list back to global free list.
 *)

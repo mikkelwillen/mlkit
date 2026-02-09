@@ -318,10 +318,6 @@ NoOfPagesInRegion(Region r)
 #endif /* ENABLE_GEN_GC */
 }
 
-/* Check if a region is infinite. */
-size_t is_Inf (Region r) {
-  return convertBoolToML(is_inf(r));
-}
 
 /* Check if a region is at bottom. */
 size_t is_Atbot (Region r) {
@@ -334,26 +330,6 @@ size_t num_Pages (Region r) {
   return convertIntToML(NoOfPagesInRegion(r_cleared));
 }
 
-/* Get size of a region page. */
-size_t get_Page_Size_Bytes () {
-  return convertIntToML(REGION_PAGE_SIZE_BYTES);
-}
-
-/* Get the size of the free list */
-size_t get_Free_List_Size_Bytes () {
-  return convertIntToML(size_free_list()*REGION_PAGE_SIZE_BYTES);
-}
-
-/* Get total number of region pages allocated */
-size_t get_Total_Region_Pages_Allocated (){
-  return convertIntToML(rp_total);
-}
-
-/* Get the memory usage of all region pages allocated */
-size_t get_Total_Region_Pages_Allocated_Bytes (){
-  return convertIntToML(rp_total*REGION_PAGE_SIZE_BYTES);
-}
-
 /* Get the memory usage of a region */
 size_t get_Region_Memory_Usage_Bytes (Region r) {
   Region r_cleared = clearStatusBits(r);
@@ -361,24 +337,33 @@ size_t get_Region_Memory_Usage_Bytes (Region r) {
 						freeInRegion(r_cleared)*WORD_SIZE_BYTES);
 }
 
+
+/* Get size of a region page. */
+size_t get_Page_Size_Bytes () {
+  return convertIntToML(REGION_PAGE_SIZE_BYTES);
+}
+
 /* Get number of allocated region pages, including free list */
-size_t num_Allocated_Pages () {
+size_t get_Num_Allocated_Pages () {
   return convertIntToML(rp_total);
 }
 
-/* Get memory usage of allocated region pages, including free list*/
-size_t get_Allocated_Memory_Bytes () {
-  return convertIntToML(rp_total*REGION_PAGE_SIZE_BYTES);
+/* Get the size of the global free list */
+size_t get_Free_List_Size () {
+  return convertIntToML(size_free_list());
 }
 
-/* Get number of allocated region pages, excluding free list */
-size_t num_Used_Pages () {
-  return convertIntToML(rp_total - size_free_list());
+
+
+/* Get the size of the local free list, if PARALLEL is set, else get the size
+   of the global free list */
+size_t get_Thread_Free_List_Size () {
+  return convertIntToML(size_thread_free_list());
 }
 
-/* Get memory usage of allocated region pages, excluding free list*/
-size_t get_Used_Memory_Bytes () {
-  return convertIntToML((rp_total - size_free_list())*REGION_PAGE_SIZE_BYTES);
+/* give the local free list back to the global free list */
+void give_Thread_Free_List_To_Global () {
+  free_thread_free_list();
 }
 
 /*
@@ -401,7 +386,8 @@ printFreeList()
 */
 
 
-#ifdef ENABLE_GC
+/* returns the size of the global free list */
+/* #ifdef ENABLE_GC */
 size_t
 size_free_list()
 {
@@ -417,7 +403,50 @@ size_free_list()
 
   return i;
 }
-#endif /*ENABLE_GC*/
+/* #endif /\*ENABLE_GC*\/ */
+
+
+/* returns the size of thread specific free list, if PARALLLEL is set,
+   else returns size_free_list () */
+size_t
+size_thread_free_list() {
+  Rp* rp;
+  size_t i = 0;
+
+  MAYBE_DEFINE_CONTEXT;
+  
+  LOCK_LOCK(FREELISTMUTEX);
+
+  for ( rp = FREELIST ; rp ; rp = rp-> n )
+	i++;
+
+  LOCK_UNLOCK(FREELISTMUTEX);
+
+  return i;
+}
+
+/* gives the pages in the local free list back to the global free list */
+void
+free_thread_free_list() {
+#ifdef PARALLEL
+  MAYBE_DEFINE_CONTEXT;
+
+  LOCK_LOCK(FREELISTMUTEX);
+
+  if ( FREELIST != NULL ) {
+	Rp* fl_tmp = global_freelist;
+	global_freelist = FREELIST;
+	Rp* last = global_freelist;
+	while ( last->n != NULL ) {
+	  last = last->n;
+	}
+	last->n = fl_tmp;
+	FREELIST = NULL;
+  }
+
+  LOCK_UNLOCK(FREELISTMUTEX);
+#endif /* PARALLEL */
+}
 
 /*-------------------------------------------------------------------------*
  *                         Region operations.                              *
