@@ -103,6 +103,39 @@ structure LambdaExp : LAMBDA_EXP =
     fun isCharType (CONStype(_,tn,_)) = TyName.eq (tn, TyName.tyName_CHAR)
       | isCharType _ = false
 
+    fun contains_regvars t =
+        case t of
+            TYVARtype _ => false
+          | ARROWtype(ts1,ro1,ts2,ro2) => Option.isSome ro1 orelse Option.isSome ro2 orelse
+                                          contains_regvarss ts1 orelse contains_regvarss ts2
+          | CONStype(ts,_,rso) => Option.isSome rso orelse contains_regvarss ts
+          | RECORDtype (ts,ro) => Option.isSome ro orelse contains_regvarss ts
+    and contains_regvarss (t::ts) =
+        contains_regvars t orelse contains_regvarss ts
+      | contains_regvarss nil = false
+
+    (* Find regvars in types *)
+    local
+      fun ins r a = if List.exists (fn r' => RegVar.eq(r,r')) a then a
+                    else r::a
+      fun add NONE a = a
+        | add (SOME r) a = ins r a
+      fun adds nil a = a
+        | adds (r::rs) a = adds rs (ins r a)
+      fun rvst t a =
+          case t of
+              TYVARtype _ => a
+            | ARROWtype(ts1,ro1,ts2,ro2) => add ro1 (add ro2 (rvsts ts1 (rvsts ts2 a)))
+            | CONStype(ts,_,NONE) => rvsts ts a
+            | CONStype(ts,_,SOME rs) => adds rs (rvsts ts a)
+            | RECORDtype (ts,ro) => add ro (rvsts ts a)
+      and rvsts nil a = a
+        | rvsts (t::ts) a = rvsts ts (rvst t a)
+    in
+      fun regvarsType (t:Type) : regvar list = rvst t nil
+      fun regvarsTypes (ts:Type list) : regvar list = rvsts ts nil
+    end
+
     datatype TypeList =                               (* To allow the result of a declaration *)
         Types of Type list                            (* to be a raised Bind exception. *)
       | Frame of {declared_lvars: {lvar : lvar, tyvars: tyvar list, Type: Type} list,
@@ -150,25 +183,25 @@ structure LambdaExp : LAMBDA_EXP =
       (* list of mutual recursive datatype declarations *)
 
     and LambdaExp =
-        VAR      of {lvar: lvar, instances : Type list, regvars: regvar list}
+        VAR      of {lvar: lvar, instances: Type list, regvars: regvar list}
       | INTEGER  of IntInf.int * Type
       | WORD     of IntInf.int * Type
       | STRING   of string * regvar option
       | REAL     of string * regvar option
       | F64      of string
-      | FN       of {pat : (lvar * Type) list, body : LambdaExp}
-      | LET      of {pat : (lvar * tyvar list * Type) list,
-                     bind : LambdaExp,
+      | FN       of {pat: (lvar * Type) list, body: LambdaExp}
+      | LET      of {pat: (lvar * tyvar list * Type) list,
+                     bind: LambdaExp,
                      scope: LambdaExp}
       | LETREGION of {regvars: regvar list,
                       scope: LambdaExp}
-      | FIX      of {functions : {lvar : lvar,
-                                  regvars: regvar list,
-                                  tyvars : tyvar list,
-                                  Type : Type,
-                                  constrs: constr list,
-                                  bind : LambdaExp} list,
-                     scope : LambdaExp}
+      | FIX      of {functions: {lvar: lvar,
+                                 regvars: regvar list,
+                                 tyvars: tyvar list,
+                                 Type: Type,
+                                 constrs: constr list,
+                                 bind: LambdaExp} list,
+                     scope: LambdaExp}
       | APP      of LambdaExp * LambdaExp * bool option (* tail call? *)
       | EXCEPTION of excon * Type option * LambdaExp
       | RAISE    of LambdaExp * TypeList
@@ -180,11 +213,13 @@ structure LambdaExp : LAMBDA_EXP =
       | SWITCH_E of (excon*lvar option) Switch
       | TYPED    of LambdaExp * Type * constr list
       | PRIM     of Type prim * LambdaExp list
-      | FRAME    of {declared_lvars: {lvar : lvar, tyvars: tyvar list, Type: Type} list,
+      | FRAME    of {declared_lvars: {lvar: lvar, tyvars: tyvar list, Type: Type} list,
                      declared_excons: (excon * Type option) list}
                        (* a frame is the result of a structure-level
                         * declaration.
                         *)
+      | CHECK_REML of {lvar: lvar, tyvars: tyvar list, Type: Type, il: Type list, rep: Report}
+                       (* REML: Check that lvar has the type scheme specified... *)
 
     and 'a Switch = SWITCH of LambdaExp * ('a * LambdaExp) list * LambdaExp option
 
@@ -231,6 +266,7 @@ structure LambdaExp : LAMBDA_EXP =
         | TYPED (lamb,tau,_) => foldTD fcns new_acc lamb
         | PRIM(prim,lambs) => foldl' (foldTD fcns) new_acc lambs
         | FRAME _ => acc
+        | CHECK_REML _ => acc
       end
 
     and foldPrim (g: 'a -> Type -> 'a) (acc:'a) (prim:Type prim) : 'a =
@@ -387,6 +423,7 @@ structure LambdaExp : LAMBDA_EXP =
           | TYPED (lamb,_,_)            => safe raiseOk lamb
           | PRIM(prim,lambs)            => (safe_prim prim; app (safe raiseOk) lambs)
           | FRAME _                     => ()
+          | CHECK_REML _                => raise NotSafe
 
      fun safeLambdaExps0 raiseOk lambs =
          (app (safe raiseOk) lambs; true)
@@ -1311,6 +1348,10 @@ structure LambdaExp : LAMBDA_EXP =
                               indent=0,children=lvs@exs}
                   end
               else layoutFrame "FRAME" fr
+      | CHECK_REML {lvar, tyvars, Type, rep= _, il} =>
+        PP.NODE{start="CHECK_REML(",finish=")", indent=11,
+                childsep=PP.RIGHT ",",children=[layVarSigma(lvar,tyvars,Type),
+                                                layoutTypes il]}
 
     and maybepar context t = parenthesise (context > 13) t
 
@@ -1710,6 +1751,7 @@ structure LambdaExp : LAMBDA_EXP =
               | toInt (FRAME _) = 19
               | toInt (LETREGION _) = 20
               | toInt (F64 _) = 21
+              | toInt (CHECK_REML _) = 22
 
             fun fun_VAR pu_LambdaExp =
                 Pickle.con1 VAR (fn VAR a => a | _ => die "pu_LambdaExp.VAR")
@@ -1795,7 +1837,12 @@ structure LambdaExp : LAMBDA_EXP =
                 (Pickle.pairGen0(Pickle.listGen RegVar.pu,pu_LambdaExp))
             fun fun_F64 pu_LambdaExp =
                 Pickle.con1 F64 (fn F64 a => a | _ => die "pu_LambdaExp.F64")
-                Pickle.string
+                            Pickle.string
+            fun fun_CHECK_REML _ =
+                Pickle.con1 (fn ((a,b,c,il),r) => CHECK_REML {lvar=a,tyvars=b,Type=c,il=il,rep=r})
+                            (fn CHECK_REML{lvar,tyvars,Type,il,rep} => ((lvar,tyvars,Type,il),rep)
+                              | _ => die "pu_LambdaExp.CHECK_REML")
+                            (Pickle.pairGen0(Pickle.tup4Gen0(Lvars.pu,pu_tyvars,pu_Type,Pickle.listGen pu_Type),Report.pu))
 
         in Pickle.dataGen("LambdaExp.LambdaExp",toInt,[fun_VAR,
                                                        fun_INTEGER,
@@ -1818,7 +1865,8 @@ structure LambdaExp : LAMBDA_EXP =
                                                        fun_PRIM,
                                                        fun_FRAME,
                                                        fun_LETREGION,
-                                                       fun_F64])
+                                                       fun_F64,
+                                                       fun_CHECK_REML])
         end
 
     structure TyvarSet = NatSet
@@ -1891,6 +1939,7 @@ structure LambdaExp : LAMBDA_EXP =
         | TYPED (e,tau,_) => tyvars_Type s tau (tyvars_Exp s e acc)
         | PRIM(p,es) => tyvars_Exps s es (tyvars_Prim s p acc)
         | FRAME fr => tyvars_Frame s fr acc
+        | CHECK_REML {lvar,tyvars,Type,il,rep= _} => tyvars_Types s il (tyvars_Scheme s (tyvars, Type) acc)
       end
 
     and tyvars_Exps s nil acc = acc
