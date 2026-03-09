@@ -101,27 +101,27 @@ local
 			  Exit => (
 				print "Exiting service loop...\n";
 				raise Fail "Service exited"
-		)
-	| Nothing => (
-		print "No valid subservice requested. Continuing...\n";
-		state
-	  )
-	| Chat => (
-		let
-		  val (response : string`r4, state') = chat (state, data)
-		in
-		  resp (response : string`r4);
-		  state'
-		end
-	  )
-	| History => (
-		let
-		  val response : string`r4 = history state
-		in
-		  resp (response : string`r4);
-		  state
-		end
-	  )
+			  )
+			| Nothing => (
+				print "No valid subservice requested. Continuing...\n";
+				state
+			  )
+			| Chat => (
+				let
+				  val (response : string`r4, state') = chat (state, data)
+				in
+				  resp (response : string`r4);
+				  state'
+				end
+			  )
+			| History => (
+				let
+				  val response : string`r4 = history state
+				in
+				  resp (response : string`r4);
+				  state
+				end
+			  )
 		  end
 	  in
 		service inStream state'
