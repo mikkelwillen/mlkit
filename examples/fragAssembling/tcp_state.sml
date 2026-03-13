@@ -15,32 +15,40 @@ struct
   (* state helper functions *)
   fun emptyState () : state = St []
 
-  fun mapState f (St lst) = St (List.map f lst)
+  fun mapState f (St lst) =
+	  let fun go [] acc = List.rev acc
+			| go ((c, a) :: rest) acc = go rest (f (c, a) :: acc)
+	  in St (go lst [])
+	  end
+
   fun foldlState f acc (St lst) = List.foldl f acc lst
   fun findState f (St lst) = List.find f lst
   fun prependState (St lst) (conn, assembler) = St ((conn, assembler) :: lst)
 
 
   (* inserts elm into sorted list according to f *)
-  fun insertInList f elm [] = [elm]
-	| insertInList f elm (x::xs) =
-	  if f (elm, x) then elm :: x :: xs
-	  else x :: insertInList f elm xs
+  fun insertInList f elm lst =
+	  let fun go [] acc = List.rev (elm :: acc)
+			| go (x :: xs) acc =
+			  if f (elm, x) then List.revAppend (acc, elm :: x :: xs)
+			  else go xs (x :: acc)
+	  in go lst []
+	  end
 
   (* updatePrefix updates the prefix of an assembler by moving packets from the
 	 bag to the prefix if they fit *)
   fun updatePrefix (assembler: assembler) : assembler =
 	let
-	  fun loop {prefix, bag, cPkID} =
+	  fun go {prefix, bag, cPkID} =
 		case bag of
 		  [] => {prefix=prefix, bag=[], cPkID=cPkID}
 		| (p :: ps) =>
 		  if #1 p = cPkID then
-			loop {prefix = p :: prefix, bag=ps, cPkID=cPkID + 1}
+			go {prefix = p :: prefix, bag=ps, cPkID=cPkID + 1}
 		  else
 			{prefix=prefix, bag=bag, cPkID=cPkID}
 	in
-	   loop assembler
+	   go assembler
 	end
 
   fun insertPacket (conn: conn) (packet: packet) (state: state) : state =
@@ -93,8 +101,8 @@ struct
 	) state
 
 
-  fun copyPacketList [] = []
-	| copyPacketList ((pkID, s) :: ps) = (pkID, s ^ "") :: copyPacketList ps
+  fun copyPacketList lst =
+	  List.rev (List.foldl (fn ((pkID, s), acc) => (pkID, s ^ "") :: acc) [] lst)
 
   fun stateSize state =
 	foldlState (

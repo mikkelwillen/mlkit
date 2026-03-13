@@ -43,19 +43,24 @@ struct
 	 up untill "\n\n", and NONE otherwise *)
   fun findEnd (s:string) : string option =
 	let
-	  fun loop (i:int) =
+	  fun go (i:int) =
 		if i >= String.size s - 1 then NONE
 		else if String.substring (s, i, 2) = "\n\n" then
 			SOME (String.substring (s, 0, i + 2))
-		else loop (i + 1)
+		else go (i + 1)
 	in
-	  loop 0
+	  go 0
 	end
 
   fun copySs [] = []
 	| copySs ((c, buf)::rest) = (c, buf ^ "") :: copySs rest
 
-  fun timeToGC ss = true
+  fun timeToGC`[r1 r2] (ss : serviceState`[r1 r2]) : bool =
+	  let val total = Regions.memoryUsageOfRegion `r1 ()
+					+ Regions.memoryUsageOfRegion `r2 ()
+		val live = Size.size (Size.list (fn (c, buf) => Size.pair Size.int Size.string (c, buf))) ss
+	  in live < total div 2
+	  end 
 
   fun service (ss, c, chunk) =
 	let val tempState = addConn (c, chunk, ss)
