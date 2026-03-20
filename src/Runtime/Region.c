@@ -320,18 +320,18 @@ NoOfPagesInRegion(Region r)
 
 
 /* Check if a region is at bottom. */
-size_t is_Atbot (Region r) {
+size_t REG_POLY_FUN_HDR(is_Atbot, Region r) {
   return convertBoolToML(is_atbot(r));
 }
 
 /* Get number of pages in a region. */
-size_t num_Pages (Region r) {
+size_t REG_POLY_FUN_HDR(num_Pages, Region r) {
   Region r_cleared = clearStatusBits(r);
   return convertIntToML(NoOfPagesInRegion(r_cleared));
 }
 
 /* Get the memory usage of a region */
-size_t get_Region_Memory_Usage_Bytes (Region r) {
+size_t REG_POLY_FUN_HDR(get_Region_Memory_Usage_Bytes, Region r) {
   Region r_cleared = clearStatusBits(r);
   return convertIntToML(NoOfPagesInRegion(r_cleared)*REGION_PAGE_SIZE_BYTES -
 						freeInRegion(r_cleared)*WORD_SIZE_BYTES);
@@ -1184,6 +1184,52 @@ resetRegion(Region rAdr)
   return rAdr; /* We preserve rAdr and the status bits. */
 }
 
+/* Copy of the above function, but for profiling. Expanding with macro, would
+   require many changes elsewhere in the code */
+Region
+resetRegionProf(Region rAdr, size_t pPoint)
+{
+  Ro *r;
+
+#ifdef PROFILING
+  int j;
+#endif
+
+  debug(printf("[resetRegions..."));
+
+  r = clearStatusBits(rAdr);
+
+#ifdef PROFILING
+  callsOfResetRegion++;
+  j = NoOfPagesInRegion(r);
+
+  /* There is always at-least one page in a generation. */
+  noOfPages -= j-MIN_NO_OF_PAGES_IN_REGION;
+  profTabDecrNoOfPages(r->regionId, j-MIN_NO_OF_PAGES_IN_REGION);
+
+  allocNowInf -= r->allocNow;
+  profTabDecrAllocNow(r->regionId, r->allocNow, "resetRegion");
+  allocProfNowInf -= r->allocProfNow;
+#endif
+
+  resetGen(&(r->g0));
+#ifdef ENABLE_GEN_GC
+  resetGen(&(r->g1));
+#endif /* ENABLE_GEN_GC */
+
+  free_lobjs(r->lobjs);
+
+  r->lobjs = NULL;
+
+#ifdef PROFILING
+  r->allocNow = 0;
+  r->allocProfNow = 0;
+#endif
+
+  debug(printf("]\n"));
+
+  return rAdr; /* We preserve rAdr and the status bits. */
+}
 /*-------------------------------------------------------------------------*
  * deallocateRegionsUntil:                                                 *
  *  It is called with rAddr=sp, which do not necessarily point at a region *
