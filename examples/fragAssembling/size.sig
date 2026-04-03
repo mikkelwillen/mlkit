@@ -1,6 +1,6 @@
 signature SIZE =
 sig
-  type 'a sz = 'a -> int
+  type 'a sz
 
   (* Primitives *)
   val int    : int sz
@@ -14,8 +14,8 @@ sig
   (* Combinators *)
   val list   : 'a sz -> 'a list sz
   val option : 'a sz -> 'a option sz
-  val pair   : 'a sz -> 'b sz -> ('a * 'b) sz
-  val triple : 'a sz -> 'b sz -> 'c sz -> ('a * 'b * 'c) sz
+  val tup2   : 'a sz -> 'b sz -> ('a * 'b) sz
+  val tup3   : 'a sz -> 'b sz -> 'c sz -> ('a * 'b * 'c) sz
 
   val size   : 'a sz -> 'a -> int
 end
