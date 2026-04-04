@@ -82,15 +82,10 @@ nomut2-err.sml        ccl ecte nobasislib noopt  (* Violation of nomut constrain
 disputs.sml           ccl ecte nobasislib noopt  (* Violation of disjoint put-effects (##) - let rec *)
 disputs2.sml          ccl ecte nobasislib noopt  (* Violation of disjoint put-effects (##) - fun *)
 
-par.sml                           (* A sound implementation of par with constraint *)
-par-no.sml            ccl ecte    (* But it needs to be satisfied *)
-par-no2.sml           ccl ecte    (* The trivial definition of par is not ok *)
-
 par.sml                        nobasislib noopt  (* A sound implementation of par with constraint *)
 par-no.sml            ccl ecte nobasislib noopt  (* But it needs to be satisfied *)
 par-no2.sml           ccl ecte nobasislib noopt  (* The trivial definition of par is not ok *)
 
-<<<<<<< HEAD
 mod.sml               ccl ecte                   (* Signature matching: It is an error if the implementation
                                                     type is less general than the specified type. *)
 mod2.sml              ccl ecte                   (* Signature matching: It is an error if the specified
@@ -107,16 +102,19 @@ mod7.sml              ccl ecte                   (* Signature matching: It is an
 (* --------------------- *)
 (* Testing region resets *)
 (* --------------------- *)
-reset.sml			  nooptimiser      (* Resetting the region of a dead variable results in a reset *)
-reset2.sml			  ccl nooptimiser  (* Resetting the region of a live variable results in a warning, and no a reset *)
-reset3.sml			  nooptimiser	   (* Resetting a region containing the data of a dead variables results in a reset *)
-reset4.sml			  ccl nooptimiser  (* Resetting a region containing the data of a live variable results in a warning, and no a reset *)
-reset5.sml			  nooptimiser      (* Combination of 1 and 3 *)
-reset6.sml			  ccl nooptimiser  (* Combination of 2 and 4 *)
+resetErr.sml 		  ccl ecte noopt   (* Using an out-of-scope region variable is a compile time error *)
+	
+reset.sml			  noopt			   (* Resetting the region of a dead variable results in a reset *)
+reset2.sml			  ccl noopt		   (* Resetting the region of a live variable results in a warning, and no a reset *)
+reset3.sml			  noopt			   (* Resetting a region containing the data of a dead variables results in a reset *)
+reset4.sml			  ccl noopt		   (* Resetting a region containing the data of a live variable results in a warning, and no a reset *)
+reset5.sml			  noopt			   (* Combination of 1 and 3 *)
+reset6.sml			  ccl noopt		   (* Combination of 2 and 4 *)
+reset7.sml			  noopt  		   (* Resetting multiple explicit regiosn at once *)
 
-forceReset.sml        nooptimiser	   (* Force resetting the region of a dead variable results in reset *)
-forceReset2.sml		  ccl nooptimiser  (* Force resetting the region of a live variable results in a warning, but still results in a reset *)
-forceReset3.sml       nooptimiser      (* Force resetting a region containing the data of a dead variables results in a reset *)
-forceReset4.sml		  ccl nooptimiser  (* Force resetting a region containing the data of a live variable results in a warning, but still results in a reset *)
-forceReset5.sml       nooptimiser      (* Combination of 1 and 3 *)
-forceReset6.sml		  ccl nooptimiser  (* Combination of 2 and 4 *)
+forceReset.sml        noopt			   (* Force resetting the region of a dead variable results in reset *)
+forceReset2.sml		  ccl noopt		   (* Force resetting the region of a live variable results in a warning, but still results in a reset *)
+forceReset3.sml       noopt			   (* Force resetting a region containing the data of a dead variables results in a reset *)
+forceReset4.sml		  ccl noopt  	   (* Force resetting a region containing the data of a live variable results in a warning, but still results in a reset *)
+forceReset5.sml       noopt			   (* Combination of 1 and 3 *)
+forceReset6.sml		  ccl noopt 	   (* Combination of 2 and 4 *)
