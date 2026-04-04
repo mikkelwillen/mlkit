@@ -20,18 +20,20 @@ Test files may contain Standard ML like comments.
 
 *)
 
-(* ----------------------------------------- *)
-(* Testing functionality of region structure *)
-(* ----------------------------------------- *)
+(* -------------------------------------- *)
+(* Testing functionality of region module *)
+(* -------------------------------------- *)
 
 resetRegion_doesNotIncreaseMemoryUsage.mlb  nogc
 resetRegion_idempotent_memoryUsage.mlb		nogc
 resetRegion_keepsAtbot_onEmpty.mlb			nogc
 resetRegion_setsAtbot_afterAllocation.mlb	nogc
+resetRegion_resets_with_liveRef.mlb			nogc
 resetRegion_doesNotIncreaseMemoryUsage.mlb  nogc parallel
 resetRegion_idempotent_memoryUsage.mlb		nogc parallel
 resetRegion_keepsAtbot_onEmpty.mlb			nogc parallel
 resetRegion_setsAtbot_afterAllocation.mlb	nogc parallel
+resetRegion_resets_with_liveRef.mlb			nogc parallel
 
 
 isAtbot_true_initial.mlb					nogc 
@@ -87,3 +89,24 @@ giveBack_threadFreeList_nonincreasing.mlb	nogc parallel
 
 region_usageWithinAllocatedPages.mlb		nogc
 region_usageWithinAllocatedPages.mlb		nogc parallel
+
+
+(* -------------------------------------- *)
+(* Testing Size combinator module         *)
+(* -------------------------------------- *)
+
+size_int_zero.mlb							nogc
+size_string_positive.mlb					nogc
+size_list_nil_is_word.mlb					nogc
+size_list_grows.mlb							nogc
+size_tup2_positive.mlb						nogc
+size_option_some_gt_none.mlb				nogc
+size_leq_regionUsage.mlb					nogc
+
+size_int_zero.mlb							nogc parallel
+size_string_positive.mlb					nogc parallel
+size_list_nil_is_word.mlb					nogc parallel
+size_list_grows.mlb							nogc parallel
+size_tup2_positive.mlb						nogc parallel
+size_option_some_gt_none.mlb				nogc parallel
+size_leq_regionUsage.mlb					nogc parallel
