@@ -10,7 +10,7 @@ struct
 	 bag: packet list,
 	 cPkID: int}
 
-  datatype state = St of (conn * assembler) list
+  datatype state = St of (conn * {prefix: (pkID * string) list, bag: (pkID  * string) list, cPkID: int}) list
 
   (* state helper functions *)
   fun emptyState () : state = St []
@@ -104,11 +104,13 @@ struct
   fun copyPacketList lst =
 	  List.rev (List.foldl (fn ((pkID, s), acc) => (pkID, s ^ "") :: acc) [] lst)
 
-  fun stateSize state =
-	foldlState (
-	  fn ((_, {prefix, bag, cPkID}), acc) =>
-		acc + List.length prefix + List.length bag
-	) 0 state
+  fun stateSize `[r1 r2 r3] (St (lst : (int * {prefix: (int * string`r1)`r2 list`r2,
+											   bag: (int * string`r1)`r2 list`r2,
+											   cPkID: int}`r3
+									   ) list`r2)) : int =
+	  Region.memoryUsageOfRegion `[r1] ()
+	+ Region.memoryUsageOfRegion `[r2] ()
+	+ Region.memoryUsageOfRegion `[r3] ()
 
   fun copyState state =
 	mapState (

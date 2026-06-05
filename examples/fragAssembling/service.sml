@@ -56,12 +56,24 @@ struct
 	| copySs ((c, buf)::rest) = (c, buf ^ "") :: copySs rest
 
   fun timeToGC`[r1 r2 r3] (ss : (conn * string`r1)`r3 list`r2) : bool =
-	  let val total = prim `[r1] ("get_Region_Memory_Usage_Bytes", ())
-					+ prim `[r2]("get_Region_Memory_Usage_Bytes", ())
+	  let val total = Region.memoryUsageOfRegion `[r1] ()
+					+ Region.memoryUsageOfRegion `[r2] ()
+					+ Region.memoryUsageOfRegion `[r3] ()
 		  val live = Size.size (Size.list (Size.tup2 Size.int Size.string))  ss
-	  in live < total div 2
+	  in live * 10 < total
 	  end
-  (* fun timeToGC ss = true *)
+  (* fun timeToGC ss = false *)
+
+  (* fun timeToGC `[r1 r2 r3] (ss : (conn * string`r1)`r3 list`r2) : bool = *)
+  (* 	  let val total = Region.memoryUsageOfRegion `[r1] () *)
+  (* 					+ Region.memoryUsageOfRegion `[r2] () *)
+  (* 					+ Region.memoryUsageOfRegion `[r3] () *)
+  (* 	  in if total < 1000000 then false *)
+  (*        else *)
+  (* 		   let val live = Size.size (Size.list (Size.tup2 Size.int Size.string))  ss *)
+  (* 		   in live * 4 < total *)
+  (* 		   end *)
+  (* 	  end *)
 
   fun service (ss, c, chunk) =
 	let val tempState = addConn (c, chunk, ss)

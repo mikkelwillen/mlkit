@@ -6,7 +6,7 @@ sig
   val emptySs : unit -> serviceState
   val timeToGC : serviceState -> bool
   val copySs : serviceState -> serviceState
-end
+en
 
 signature DRIVER =
 sig
@@ -35,7 +35,6 @@ struct
 			)
 		  | _ => NONE
 
-  (* this function needs to be tail recursive *)
   fun loop is (arg as (state, ss)) =
 	  let val arg' = 
 		case read is of
@@ -45,31 +44,41 @@ struct
 				 NONE => arg
 			   | SOME state1 =>
 				(case extract state1 of
-					NONE => (state1, ss)
+				   NONE => (print ("state size: " ^ Int.toString (stateSize state1) ^ " bytes\n");
+							(state1, ss))
 				  | SOME (msgID, msg, state2) =>
 					 let
 					   val msg' = msg ^ ""
 					   val (connOpt, ss') = Service.service (ss, msgID, msg')
 
 					   (* Double copy GC on the assemlber state *)
-					   val state3 = copyState state2
-					   val _ 	  = forceResetting state2
-					   val _ 	  = forceResetting state
-					   val state4 =
+					   (* val state' = if stateSize state2 > 10000 then *)
+					   (* 				  let val temp = copyState state2 *)
+					   (* 					  val _ = forceResetting state2 *)
+					   (* 					  val _ = forceResetting state *)
+					   (* 					val _ = print ("state size: " ^ Int.toString (stateSize state2) ^ " bytes\n") *)
+					   (* 				  in copyState temp *)
+					   (* 				  end *)
+                       (*              else state2 *)
+					   (* val _ = print ("state size: " ^ Int.toString (stateSize state') ^ " bytes\n") *)
+					   val temp = copyState state2
+					   val _ = forceResetting state
+					   val state' = copyState temp
+					   val state'' =
 						 case connOpt of
-						   NONE => state3
-						 | SOME conn => closeConn (conn, state3)
-					   val state5 = copyState state4
+						   NONE => state'
+						 | SOME conn => closeConn (conn, state')
+					   (* val _ = print ("state size: " ^ Int.toString (stateSize state'') ^ " bytes\n")  *)
 
 					   (* Double copy GC on the service state *)
 					   val ss'' = if Service.timeToGC ss' then
 									let val temp = Service.copySs ss'
-									  val _ = resetRegions ss'
+									  val _ = forceResetting ss'
 									in Service.copySs temp
 									end
 								  else ss'
 					 in
-					   (state5, ss'')
+					   (state'', ss'')
 					 end
 			  )
 	  in loop is arg'
@@ -88,49 +97,5 @@ struct
 		)
 		)
 	  end
-  (* fun run file = *)
-  (* 	let *)
-  (* 	  val is = TextIO.openIn file *)
-  (* 	  val state = ref (emptyState ()) *)
-  (* 	  val ss    = ref (Service.emptySs ()) *)
-  (* 	  val running = ref true *)
-  (* 	in *)
-  (* 	  while !running do *)
-  (* 		(case read is of *)
-  (* 		   NONE => running := false *)
-  (* 		 | SOME (msgID, packet) => *)
-  (* 			 let val st = !state in *)
-  (* 			 case insert (msgID, packet, st) of *)
-  (* 			   NONE => () *)
-  (* 			 | SOME state1 => *)
-  (* 			   case extract state1 of *)
-  (* 				 NONE => state := state1 *)
-  (* 			   | SOME (msgID, msg, state2) => *)
-  (* 				   let *)
-  (* 					 val (connOpt, ss') = Service.service (!ss, msgID, msg) *)
-  (* 					 val state3 = copyState state2 *)
-  (* 					 val _ = forceResetting state2 *)
-  (* 					 val _ = forceResetting st *)
-  (* 					 val state4 = case connOpt of *)
-  (* 									NONE => state3 *)
-  (* 								  | SOME conn => closeConn (conn, state3) *)
-  (* 					 val state5 = copyState state4 *)
-  (* 					 val _ = forceResetting state4 *)
-					 
-  (* 					 val ss'' = if Service.timeToGC ss' then *)
-  (* 								  let val temp = Service.copySs ss' *)
-  (* 									  val _ = forceResetting ss' *)
-  (* 									  val res = Service.copySs temp *)
-  (* 									  val _ = forceResetting temp *)
-  (* 								  in res end *)
-  (* 								else ss' *)
-  (* 				   in *)
-  (* 					 state := state5; *)
-  (* 					 ss := ss'' *)
-  (* 				   end *)
-  (* 			 end); *)
-  (* 	  TextIO.closeIn is; *)
-  (* 	  print "Service loop exited\n" *)
-  (* 	end *)
 end
 

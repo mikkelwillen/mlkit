@@ -6,7 +6,8 @@ struct
 
   (* A heap object has one header word, then its fields.
      Unboxed integers/bools/chars take no heap space.
-     real takes two words (for the significand and exponent).
+     real takes two words, one for the header and one for the content, when GC is enabled.
+     real takes one word when GC is disabled
      Strings: header + length word + ceil(n/8) data words.
      Cons cell: hd pointer + tl pointer = 2 words.
      Tuple/record of k < 4 fields: k words 
@@ -16,7 +17,8 @@ struct
   val bool   = fn _ => 0
   val char   = fn _ => 0
   val word   = fn _ => 0
-  val real   = fn _ => 2 * word_size  
+  (* val real   = fn _ => 2 * word_size (* with GC enabled *) *)
+  val real   = fn _ => word_size (* with GC disabled *)
   val unit   = fn _ => 0
 
   (* header word + length word + data rounded up to word boundary *)
@@ -26,9 +28,9 @@ struct
       + (n + word_size - 1) div word_size * word_size  (* data *)
     end
 
-  (* nil = one word (tag); each cons cell = hd + tl = 2 words *)
+  (* nil = 0 words; each cons cell = hd + tl = 2 words - with GC disabled *)
   fun list sa xs =
-    List.foldl (fn (x, acc) => acc + 2 * word_size + sa x) word_size xs
+    List.foldl (fn (x, acc) => acc + 2 * word_size + sa x) 0 xs
 
   (* NONE = one word (tag); SOME = header + one field = 2 words + content *)
   fun option sa opt =
