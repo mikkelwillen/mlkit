@@ -441,6 +441,10 @@ structure OptLambda : OPT_LAMBDA =
         fun eq_TypeList (Types ts,Types ts') = eq_Types(ts,ts')
           | eq_TypeList _ = false
 
+        fun eq_regvars (nil,nil) = true
+          | eq_regvars (x::xs,y::ys) = RegVar.eq(x,y) andalso eq_regvars(xs,ys)
+          | eq_regvars _ = false
+
         fun eq_prim m (p,p') =
             case (p,p') of
                 (RECORDprim {regvar=NONE}, RECORDprim {regvar=NONE}) => true
@@ -462,10 +466,10 @@ structure OptLambda : OPT_LAMBDA =
                 eq_Type(t,t') andalso RegVar.eq(rv,rv')
               | (ASSIGNprim {instance=t}, ASSIGNprim {instance=t'}) => eq_Type(t,t')
               | (EQUALprim {instance=t}, EQUALprim {instance=t'}) => eq_Type(t,t')
-			  | (RESET_REGIONSprim {instance=t, regvars=rvs}, RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
-			  | (FORCE_RESET_REGIONSprim {instance=t, regvars=rvs}, FORCE_RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t')
+			  | (RESET_REGIONSprim {instance=t, regvars=rvs}, RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t') andalso eq_regvars(rvs, rvs')
+			  | (FORCE_RESET_REGIONSprim {instance=t, regvars=rvs}, FORCE_RESET_REGIONSprim {instance=t', regvars=rvs'}) => eq_Type(t,t') andalso ListPair.allEq RegVar.eq (rvs,rvs')
 			  | (CCALLprim{name=n,instances=il,regvars=rvs,tyvars=tvs,Type=t}, CCALLprim{name=n',instances=il',regvars=rvs',tyvars=tvs',Type=t'}) =>
-                    n = n' andalso eq_Types (il,il') andalso eq_sigma((tvs,t),(tvs',t'))
+                    n = n' andalso eq_Types (il,il') andalso eq_sigma((tvs,t),(tvs',t')) andalso ListPair.allEq RegVar.eq (rvs,rvs')
               | (EXPORTprim{name=n,instance_arg=a,instance_res=r}, EXPORTprim{name=n',instance_arg=a',instance_res=r'}) =>
                     n = n' andalso eq_Type(a,a') andalso eq_Type(r,r')
               | (BLOCKF64prim, BLOCKF64prim) => true
@@ -501,10 +505,6 @@ structure OptLambda : OPT_LAMBDA =
               | (INCLconstr (r,e,rep,lvopt), INCLconstr (r',e',rep',lvopt')) =>
                 RegVar.eq(r,r') andalso eq_eff(e,e') andalso Report.eq(rep,rep') andalso eq_lvopt(lvopt,lvopt')
               | _ => false
-
-        fun eq_regvars (nil,nil) = true
-          | eq_regvars (x::xs,y::ys) = RegVar.eq(x,y) andalso eq_regvars(xs,ys)
-          | eq_regvars _ = false
 
         fun eq_lamb0 m (INTEGER (n,t), INTEGER (n',t')) = n=n' andalso eq_Type(t,t')
           | eq_lamb0 m (WORD(n,t), WORD(n',t')) = n=n' andalso eq_Type(t,t')

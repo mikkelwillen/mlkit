@@ -1,6 +1,6 @@
 (** Operations and information about regions. *)
 
-signature REGIONS =
+signature REGION =
   sig
 	(* \/ r. r * unit -> unit *)
 	val resetRegion : unit -> unit
