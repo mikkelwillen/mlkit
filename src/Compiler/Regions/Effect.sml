@@ -209,7 +209,18 @@ struct
 
   and layout_rho00 (cmplx:bool) (key,level,ty,explicit,protected,constraints) =
       let val n = case explicit of
-                      NONE => "r" ^ show_key key
+                      NONE =>
+                      if reml_p() then
+                        case !key of
+                            1 => "r0top"
+                          | 2 => "r0bot"
+                          | 3 => "r0string"
+                          | 4 => "r0pair"
+                          | 5 => "r0array"
+                          | 6 => "r0ref"
+                          | 7 => "r0triple"
+                          | _ => "r" ^ show_key key
+                      else "r" ^ show_key key
                     | SOME rv =>
                       let val r = "`" ^ RegVar.pr rv
                       in if print_control_abbrev_layout() then r
@@ -241,7 +252,7 @@ struct
               case einfo of
                   EPS{key,explicit,...} =>
                   let val n = case explicit of
-                                  NONE => "e" ^ show_key key
+                                  NONE => if reml_p() andalso !key = 8 then "e0" else "e" ^ show_key key
                                 | SOME ev => "`" ^ RegVar.pr ev ^ "_" ^ show_key key
                   in PP.LEAF n
                   end
@@ -1208,12 +1219,12 @@ struct
        ; Lf unique_nodes
       end
 
-  structure PlaceOrEffectMap =
+  structure Map =
       OrderFinMap(struct type t = effect
                          val lt = lt_eps_or_rho
                   end)
 
-  structure Increments = PlaceOrEffectMap
+  structure Increments = Map
 
   val globalIncs : delta_phi Increments.map ref = ref Increments.empty
 
@@ -2195,7 +2206,7 @@ struct
 
   (* Notice: We also check ReML constraints on atomic effects during this phase *)
 
-  structure MultiMerge =
+  structure MultiMerge : sig val multimerge : effect list list -> effect list end =
     struct
       (* A multi-way merge can be implemented by keeping a heap
          of list of elements to be sorted. The lists in the heap
@@ -2213,7 +2224,6 @@ struct
 
       structure Heap = Heap(structure HeapInfo = HI)
 
-      fun merge (ae1, ae2) = ae1
       fun eq (ae1, ae2) = eq_effect(ae1, ae2)
 
       fun makeHeap ll =
@@ -2231,14 +2241,14 @@ struct
           else case Heap.delete_min h of
                    (l1 as (x1::xs1), h1) =>
                    if eq(min,x1) then
-                     if Heap.is_empty h1 then merge(min,x1)::xs1
-                     else merge_against(merge(min,x1), insert(xs1, h1))
+                     if Heap.is_empty h1 then min::xs1
+                     else merge_against(min, insert(xs1, h1))
                    else
-                     if Heap.is_empty h1 then min :: l1
+                     if Heap.is_empty h1 then min::l1
                      else min :: merge_against(x1, insert(xs1, h1))
                  | _ => die "merge_against"
 
-       fun merge_all h =
+      fun merge_all h =
           if Heap.is_empty h then []
           else case Heap.delete_min h of
                    (x1::xs1, h1) => merge_against(x1, insert(xs1,h1))
@@ -2463,7 +2473,7 @@ struct
                     []
                    )
               | PUT => [n]
-              | GET => []
+              | GET => [n]
               | MUT => [n]
               | _ => (say "bottom_up_eval: unexpected node(1): "  ;
                       say_eps n; say "\n";
@@ -2492,7 +2502,7 @@ struct
                       result
                     end)
                | PUT => [n]
-               | GET => []
+               | GET => [n]
                | MUT => [n]
                | RHO _ => []
               )
@@ -2548,13 +2558,22 @@ struct
       List.app (check_node letregions) allnodes
       handle ? as Report.DeepError _ => raise ?
 
-  fun represents eps =
+  fun represents_no_gets eps =
+      case G.find_info eps of
+          EPS{represents = SOME l, ...} =>
+          List.filter (fn e => not(is_exn e) andalso not(is_mut e) andalso not(is_get e)) l
+        | _ => (say "No info for eps\n";
+                say_eps eps;
+                die ("represents"))
+
+  fun represents_with_gets eps =
       case G.find_info eps of
           EPS{represents = SOME l, ...} =>
           List.filter (fn e => not(is_exn e) andalso not(is_mut e)) l
         | _ => (say "No info for eps\n";
                 say_eps eps;
                 die ("represents"))
+
 end
 
 (*
